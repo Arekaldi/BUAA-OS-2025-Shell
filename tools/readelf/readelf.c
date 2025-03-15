@@ -44,12 +44,27 @@ int readelf(const void *binary, size_t size) {
 	Elf32_Half sh_entry_size;
 	/* Exercise 1.1: Your code here. (1/2) */
 
+	sh_entry_count = ehdr->e_shnum;
+	sh_entry_size = ehdr->e_shentsize;
+	sh_table = binary + ehdr->e_shoff;
+
+	printf("%p %p\n", ehdr, binary);
+
+	const void *sh_test = ehdr + ehdr->e_shoff;
+
+	printf("%p %p\n", sh_table, sh_test);
+
 	// For each section header, output its index and the section address.
 	// The index should start from 0.
 	for (int i = 0; i < sh_entry_count; i++) {
 		const Elf32_Shdr *shdr;
 		unsigned int addr;
 		/* Exercise 1.1: Your code here. (2/2) */
+
+		shdr = (Elf32_Shdr *)sh_table;
+
+		addr = shdr->sh_addr;
+		sh_table = (sh_table + sh_entry_size);
 
 		printf("%d:0x%x\n", i, addr);
 	}
