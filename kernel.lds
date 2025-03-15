@@ -19,7 +19,7 @@ SECTIONS {
 	/* Step 1: Set the loading address of the text section to the location counter ".". */
 	/* Exercise 1.2: Your code here. (1/4) */
 
-	. = 0x80000000;
+	. = 0x80020000;
 
 	/* Step 2: Define the text section. */
 	/* Exercise 1.2: Your code here. (2/4) */
