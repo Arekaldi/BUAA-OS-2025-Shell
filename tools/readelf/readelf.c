@@ -48,8 +48,6 @@ int readelf(const void *binary, size_t size) {
 	sh_entry_size = ehdr->e_shentsize;
 	sh_table = binary + ehdr->e_shoff;
 
-	const void *sh_test = ehdr + ehdr->e_shoff;
-
 	// For each section header, output its index and the section address.
 	// The index should start from 0.
 	for (int i = 0; i < sh_entry_count; i++) {
