@@ -303,14 +303,16 @@ static int load_icode_mapper(void *data, u_long va, size_t offset, u_int perm, c
 
 	/* Step 1: Allocate a page with 'page_alloc'. */
 	/* Exercise 3.5: Your code here. (1/2) */
-	try(page_alloc(&p));
+	int res = page_alloc(&p);
+	if(res != 0)
+		return res;
 
 	/* Step 2: If 'src' is not NULL, copy the 'len' bytes started at 'src' into 'offset' at this
 	 * page. */
 	// Hint: You may want to use 'memcpy'.
 	if (src != NULL) {
 		/* Exercise 3.5: Your code here. (2/2) */
-		memcpy(page2kva(&p) + offset, src, len);
+		memcpy((void *)page2kva(p) + offset, src, len);
 	}
 
 	/* Step 3: Insert 'p' into 'env->env_pgdir' at 'va' with 'perm'. */
@@ -346,6 +348,7 @@ static void load_icode(struct Env *e, const void *binary, size_t size) {
 	/* Step 3: Set 'e->env_tf.cp0_epc' to 'ehdr->e_entry'. */
 	/* Exercise 3.6: Your code here. */
 	e->env_tf.cp0_epc = ehdr->e_entry;
+	// ehdr->e_entry = e->env_tf.cp0_epc;
 }
 
 /* Overview:
@@ -361,7 +364,7 @@ struct Env *env_create(const void *binary, size_t size, int priority) {
 	/* Step 1: Use 'env_alloc' to alloc a new env, with 0 as 'parent_id'. */
 	/* Exercise 3.7: Your code here. (1/3) */
 
-	try(env_alloc(&e, 0));
+	panic_on(env_alloc(&e, 0));
 
 	/* Step 2: Assign the 'priority' to 'e' and mark its 'env_status' as runnable. */
 	/* Exercise 3.7: Your code here. (2/3) */
