@@ -74,7 +74,7 @@ static void map_segment(Pde *pgdir, u_int asid, u_long pa, u_long va, u_int size
 		 *  Use 'pa2page' to get the 'struct Page *' of the physical address.
 		 */
 		/* Exercise 3.2: Your code here. */
-
+		page_insert(pgdir, asid, pa2page(pa + i), va + i, perm);
 	}
 }
 
