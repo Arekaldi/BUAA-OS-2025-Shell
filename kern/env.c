@@ -237,6 +237,9 @@ int env_alloc(struct Env **new, u_int parent_id) {
 
 	e = LIST_FIRST(&env_free_list);
 
+	if(e == NULL)
+		return -E_NO_FREE_ENV;
+
 	/* Step 2: Call a 'env_setup_vm' to initialize the user address space for this new Env. */
 	/* Exercise 3.4: Your code here. (2/4) */
 
@@ -342,7 +345,7 @@ static void load_icode(struct Env *e, const void *binary, size_t size) {
 
 	/* Step 3: Set 'e->env_tf.cp0_epc' to 'ehdr->e_entry'. */
 	/* Exercise 3.6: Your code here. */
-	ehdr->e_entry = e->env_rf.cp0_epc;
+	e->env_tf.cp0_epc = ehdr->e_entry;
 }
 
 /* Overview:
@@ -358,12 +361,22 @@ struct Env *env_create(const void *binary, size_t size, int priority) {
 	/* Step 1: Use 'env_alloc' to alloc a new env, with 0 as 'parent_id'. */
 	/* Exercise 3.7: Your code here. (1/3) */
 
+	try(env_alloc(&e, 0));
+
 	/* Step 2: Assign the 'priority' to 'e' and mark its 'env_status' as runnable. */
 	/* Exercise 3.7: Your code here. (2/3) */
+
+	e->env_pri = priority;
+
+	e->env_status = ENV_RUNNABLE;
 
 	/* Step 3: Use 'load_icode' to load the image from 'binary', and insert 'e' into
 	 * 'env_sched_list' using 'TAILQ_INSERT_HEAD'. */
 	/* Exercise 3.7: Your code here. (3/3) */
+
+	load_icode(e, binary, size);
+
+	TAILQ_INSERT_HEAD(&env_sched_list, (e), env_sched_link);
 
 	return e;
 }
@@ -468,6 +481,8 @@ void env_run(struct Env *e) {
 	/* Step 3: Change 'cur_pgdir' to 'curenv->env_pgdir', switching to its address space. */
 	/* Exercise 3.8: Your code here. (1/2) */
 
+	curenv->env_pgdir = cur_pgdir;
+
 	/* Step 4: Use 'env_pop_tf' to restore the curenv's saved context (registers) and return/go
 	 * to user mode.
 	 *
@@ -477,6 +492,8 @@ void env_run(struct Env *e) {
 	 *    returning to the kernel caller, making 'env_run' a 'noreturn' function as well.
 	 */
 	/* Exercise 3.8: Your code here. (2/2) */
+
+	env_pop_tf(&(curenv->env_tf), curenv->env_asid);
 
 }
 
