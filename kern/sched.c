@@ -36,4 +36,30 @@ void schedule(int yield) {
 	 */
 	/* Exercise 3.12: Your code here. */
 
+	// struct Env *ee = TAILQ_FIRST(&env_sched_list);
+
+	// int tot = 0;
+
+	// while(ee != NULL) {
+	// 	printk("%d: %08x\n", ++tot, ee->env_id);
+	// 	ee = TAILQ_NEXT(ee, env_sched_link);
+	// }
+
+	if(curenv == NULL || count == 0 || e->env_status != ENV_RUNNABLE || yield) {
+
+
+		if(curenv != NULL && curenv->env_status == ENV_RUNNABLE) {
+			TAILQ_REMOVE(&env_sched_list, curenv, env_sched_link);
+			TAILQ_INSERT_TAIL(&env_sched_list, e, env_sched_link);
+		}
+		e = TAILQ_FIRST(&env_sched_list);
+		panic_on(TAILQ_EMPTY(&env_sched_list));
+		count = e->env_pri;
+	}
+
+	else {
+		count--;
+	}
+
+	env_run(e);
 }
