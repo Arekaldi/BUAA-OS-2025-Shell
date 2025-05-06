@@ -115,6 +115,14 @@ int envid2env(u_int envid, struct Env **penv, int checkperm) {
 	 */
 	/* Exercise 4.3: Your code here. (1/2) */
 
+	if(envid == 0) {
+		*penv = curenv;
+		return 0;
+	}
+
+	e = (envs + ENVX(envid));
+	
+
 	if (e->env_status == ENV_FREE || e->env_id != envid) {
 		return -E_BAD_ENV;
 	}
@@ -126,6 +134,9 @@ int envid2env(u_int envid, struct Env **penv, int checkperm) {
 	 *   If violated, return '-E_BAD_ENV'.
 	 */
 	/* Exercise 4.3: Your code here. (2/2) */
+
+	if(checkperm && e != curenv && e->env_parent_id != curenv->env_id)
+		return -E_BAD_ENV;
 
 	/* Step 3: Assign 'e' to '*penv'. */
 	*penv = e;
@@ -154,7 +165,7 @@ void env_init(void) {
 
 	/* Exercise 3.1: Your code here. (2/2) */
 
-	for(int i = NENV - 1; i >= 0; --i) {
+	for(i = NENV - 1; i >= 0; --i) {
 		envs[i].env_status = ENV_FREE;
 		LIST_INSERT_HEAD(&env_free_list, envs + i, env_link);
 	}
@@ -193,7 +204,7 @@ static int env_setup_vm(struct Env *e) {
 	try(page_alloc(&p));
 	/* Exercise 3.3: Your code here. */
 	p->pp_ref++;
-	e->env_pgdir = page2kva(p);
+	e->env_pgdir = (Pde *)page2kva(p);
 
 	/* Step 2: Copy the template page directory 'base_pgdir' to 'e->env_pgdir'. */
 	/* Hint:
@@ -243,7 +254,9 @@ int env_alloc(struct Env **new, u_int parent_id) {
 	/* Step 2: Call a 'env_setup_vm' to initialize the user address space for this new Env. */
 	/* Exercise 3.4: Your code here. (2/4) */
 
-	try(env_setup_vm(e));
+	r = env_setup_vm(e);
+	if(r != 0)
+		return r;
 
 	/* Step 3: Initialize these fields for the new Env with appropriate values:
 	 *   'env_user_tlb_mod_entry' (lab4), 'env_runs' (lab6), 'env_id' (lab3), 'env_asid' (lab3),
@@ -257,7 +270,9 @@ int env_alloc(struct Env **new, u_int parent_id) {
 	e->env_runs = 0;	       // for lab6
 	/* Exercise 3.4: Your code here. (3/4) */
 	e->env_id = mkenvid(e);
-	try(asid_alloc(&e->env_asid));
+	r = asid_alloc(&e->env_asid);
+	if(r != 0)
+		return r;
 	e->env_parent_id = parent_id;
 
 	/* Step 4: Initialize the sp and 'cp0_status' in 'e->env_tf'.
@@ -303,9 +318,9 @@ static int load_icode_mapper(void *data, u_long va, size_t offset, u_int perm, c
 
 	/* Step 1: Allocate a page with 'page_alloc'. */
 	/* Exercise 3.5: Your code here. (1/2) */
-	int res = page_alloc(&p);
-	if(res != 0)
-		return res;
+	r = page_alloc(&p);
+	if(r != 0)
+		return r;
 
 	/* Step 2: If 'src' is not NULL, copy the 'len' bytes started at 'src' into 'offset' at this
 	 * page. */

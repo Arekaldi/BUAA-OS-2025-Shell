@@ -149,7 +149,7 @@ int page_alloc(struct Page **new) {
 	 * Hint: use `memset`. */
 	/* Exercise 2.4: Your code here. (2/2) */
 
-	memset(page2kva(pp), 0, PAGE_SIZE);
+	memset((void *) page2kva(pp), 0, PAGE_SIZE);
 
 	*new = pp;
 	return 0;
