@@ -179,6 +179,7 @@ int main() {
 		    "failed dev address test, maybe you should check the length in sys_read_dev");
 	}
 
+
 	debugf("dev address is ok\n");
 
 	syscall_read_dev(&c, 0x10000010, 4);

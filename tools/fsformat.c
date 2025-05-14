@@ -216,6 +216,12 @@ struct File *create_file(struct File *dirf) {
 		// the 'bno' at the index.
 		/* Exercise 5.5: Your code here. (1/3) */
 
+		if(i < 10)
+			bno = dirf->f_direct[i];
+		else
+			bno = ((u_int32_t *) disk[dirf->f_indirect].data)[i];
+		
+
 		// Get the directory block using the block number.
 		struct File *blk = (struct File *)(disk[bno].data);
 
@@ -224,13 +230,15 @@ struct File *create_file(struct File *dirf) {
 			// If the first byte of the file name is null, the 'File' is unused.
 			// Return a pointer to the unused 'File'.
 			/* Exercise 5.5: Your code here. (2/3) */
-
+			if(f->f_name[0] == '\0')
+				return f;
 		}
 	}
 
 	// Step 2: If no unused file is found, allocate a new block using 'make_link_block' function
 	// and return a pointer to the new block on 'disk'.
 	/* Exercise 5.5: Your code here. (3/3) */
+	return (struct File *)disk[make_link_block(dirf, nblk)].data;
 
 	return NULL;
 }

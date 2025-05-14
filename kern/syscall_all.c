@@ -503,7 +503,22 @@ int sys_cgetc(void) {
  */
 int sys_write_dev(u_int va, u_int pa, u_int len) {
 	/* Exercise 5.1: Your code here. (1/2) */
-
+	if(len != 1 && len != 2 && len != 4)
+		return -E_INVAL;
+	if(is_illegal_va_range(va, len) || va % len != 0)
+		return -E_INVAL;
+	if(pa < 0x180001f0 || pa >= 0x180001f0 + 0x08)
+		if(pa < 0x180003f8 || pa >= 0x180003f8 + 0x20)
+			return -E_INVAL;
+	if ((len == 4 && pa % 4 != 0) || (len == 2 && pa % 2 != 0)) {
+		return -E_INVAL;
+	}
+	if(len == 4)
+		iowrite32(*(volatile uint32_t *)va, pa);
+	else if(len == 2)
+		iowrite16(*(volatile uint16_t *)va, pa);
+	else if(len == 1)
+		iowrite8(*(volatile uint8_t *)va, pa);
 	return 0;
 }
 
@@ -524,7 +539,22 @@ int sys_write_dev(u_int va, u_int pa, u_int len) {
  */
 int sys_read_dev(u_int va, u_int pa, u_int len) {
 	/* Exercise 5.1: Your code here. (2/2) */
-
+	if(len != 1 && len != 2 && len != 4)
+		return -E_INVAL;
+	if(is_illegal_va_range(va, len) || va % len != 0)
+		return -E_INVAL;
+	if(pa < 0x180001f0 || pa >= 0x180001f0 + 0x08)
+		if(pa < 0x180003f8 || pa >= 0x180003f8 + 0x20)
+			return -E_INVAL;
+	if ((len == 4 && pa % 4 != 0) || (len == 2 && pa % 2 != 0)) {
+		return -E_INVAL;
+	}
+	if(len == 4)
+		*(volatile uint32_t *)va = ioread32(pa);
+	else if(len == 2)
+		*(volatile uint16_t *)va = ioread16(pa);
+	else if(len == 1)
+		*(volatile uint8_t *)va = ioread8(pa);
 	return 0;
 }
 

@@ -288,9 +288,11 @@ void serve_remove(u_int envid, struct Fsreq_remove *rq) {
 	int r;
 	/* Exercise 5.11: Your code here. (1/2) */
 
+	r = file_remove(rq->req_path);
+
 	// Step 2: Respond the return value to the caller 'envid' using 'ipc_send'.
 	/* Exercise 5.11: Your code here. (2/2) */
-
+	ipc_send(envid, r, 0, 0);
 }
 
 /*
