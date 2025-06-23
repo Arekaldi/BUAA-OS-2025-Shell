@@ -221,7 +221,7 @@ static int pgdir_walk(Pde *pgdir, u_long va, int create, Pte **ppte) {
 
 	u_long pa = PTE_ADDR(*pgdir_entryp);
 
-	Pte *pgtbl = KADDR(pa);
+	Pte *pgtbl = (Pte *)KADDR(pa);
 
 	*ppte = pgtbl + PTX(va);
 

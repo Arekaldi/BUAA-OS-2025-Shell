@@ -283,6 +283,7 @@ int env_alloc(struct Env **new, u_int parent_id) {
 	e->env_tf.cp0_status = STATUS_IM7 | STATUS_IE | STATUS_EXL | STATUS_UM;
 	// Reserve space for 'argc' and 'argv'.
 	e->env_tf.regs[29] = USTACKTOP - sizeof(int) - sizeof(char **);
+	strcpy(e->env_work_path, "/");
 
 	/* Step 5: Remove the new Env from env_free_list. */
 	/* Exercise 3.4: Your code here. (4/4) */
@@ -439,6 +440,8 @@ void env_free(struct Env *e) {
 	tlb_invalidate(e->env_asid, UVPT + (PDX(UVPT) << PGSHIFT));
 	/* Hint: return the environment to the free list. */
 	e->env_status = ENV_FREE;
+	e->env_work_path[0] = '\0';
+
 	LIST_INSERT_HEAD((&env_free_list), (e), env_link);
 	TAILQ_REMOVE(&env_sched_list, (e), env_sched_link);
 }

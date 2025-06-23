@@ -16,6 +16,20 @@ u_int syscall_getenvid(void) {
 	return msyscall(SYS_getenvid);
 }
 
+int syscall_env_chdir(u_int envid, char *path) {
+	debugf("syscalling chdir for envid %08x with path '%s'\n", envid, path);
+	return msyscall(SYS_env_chdir, envid, path);
+}
+
+int syscall_env_getpwd(u_int envid, char *buf) {
+	debugf("syscalling getpwd for envid %08x\n", envid);
+	int r = msyscall(SYS_env_getpwd, envid, buf);
+	if (r < 0) {
+		user_panic("syscall_env_getpwd returned %d", r);
+	}
+	return r;
+}
+
 void syscall_yield(void) {
 	msyscall(SYS_yield);
 }

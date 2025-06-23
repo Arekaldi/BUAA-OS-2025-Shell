@@ -171,5 +171,9 @@ int fork(void) {
 	syscall_set_tlb_mod_entry(child, cow_entry);
 	syscall_set_env_status(child, ENV_RUNNABLE);
 
+	char work_path[MAX_PATH];
+	syscall_env_getpwd(syscall_getenvid(), work_path);
+	syscall_env_chdir(child, work_path);
+
 	return child;
 }

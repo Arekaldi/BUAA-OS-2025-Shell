@@ -68,6 +68,8 @@ int syscall_ipc_recv(void *dstva);
 int syscall_cgetc(void);
 int syscall_write_dev(void *va, u_int dev, u_int len);
 int syscall_read_dev(void *va, u_int dev, u_int len);
+int syscall_env_chdir(u_int envid, char *path);
+int syscall_env_getpwd(u_int envid, char *buf);
 
 // ipc.c
 void ipc_send(u_int whom, u_int val, const void *srcva, u_int perm);

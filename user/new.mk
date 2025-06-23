@@ -1,6 +1,6 @@
 
 INITAPPS +=
 
-USERLIB	+=
+USERLIB	+= cd.o
 
 USERAPPS +=

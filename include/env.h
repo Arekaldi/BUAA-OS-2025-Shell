@@ -14,6 +14,7 @@
 #define ENV_FREE 0
 #define ENV_RUNNABLE 1
 #define ENV_NOT_RUNNABLE 2
+#define MAX_PATH 256
 
 // Control block of an environment (process).
 struct Env {
@@ -39,6 +40,8 @@ struct Env {
 
 	// Lab 6 scheduler counts
 	u_int env_runs; // number of times we've been env_run'ed
+
+	char env_work_path[MAX_PATH];
 };
 
 LIST_HEAD(Env_list, Env);

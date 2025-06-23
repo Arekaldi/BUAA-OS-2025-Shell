@@ -1,5 +1,6 @@
 #include <args.h>
 #include <lib.h>
+#include <cd.h>
 
 #define WHITESPACE " \t\r\n"
 #define SYMBOLS "<|>&;()"
@@ -142,14 +143,14 @@ int parsecmd(char **argv, int *rightpipe) {
 			/* Exercise 6.5: Your code here. (3/3) */
 			r = pipe(p);
 			if (r != 0) {
-				debugf("pipe: %d\n", r);
-				exit();
-			}
-			r = fork();
-			if (r < 0) {
-				debugf("fork: %d\n", r);
-				exit();
-			}
+                debugf("pipe failed\n");
+                exit();
+            }
+            r = fork();
+            if (r < 0) {
+                debugf("fork failed for pipe\n");
+                exit();
+            }
 			*rightpipe = r;
 			if (r == 0) {
 				dup(p[0], 0);
@@ -180,6 +181,25 @@ void runcmd(char *s) {
 	if (argc == 0) {
 		return;
 	}
+
+	debugf("runcmd: %s\n", s);
+	for(int i = 0; i < argc; i++) {
+		debugf("argv[%d] = '%s'\n", i, argv[i]);
+	}
+	if(strcmp(argv[0], "cd") == 0) {
+		if (cd_shell(argc, argv) < 0) {
+		}
+		return;
+	}
+	else if(strcmp(argv[0], "pwd") == 0) {
+		if (pwd_shell(argc, argv) < 0) {
+		}
+		return;
+	}
+	else if(strcmp(argv[0], "exit") == 0) {
+		exit();
+	}
+
 	argv[argc] = 0;
 
 	int child = spawn(argv[0], argv);
@@ -196,34 +216,178 @@ void runcmd(char *s) {
 }
 
 void readline(char *buf, u_int n) {
-	int r;
-	for (int i = 0; i < n; i++) {
-		if ((r = read(0, buf + i, 1)) != 1) {
-			if (r < 0) {
-				debugf("read error: %d\n", r);
-			}
-			exit();
-		}
-		if (buf[i] == '\b' || buf[i] == 0x7f) {
-			if (i > 0) {
+    int r;
+    char c;
+    int cursor = 0;  // 光标位置
+    
+    for(int i = 0; i < n; ++i) {
+        if ((r = read(0, &c, 1)) != 1) {
+            if (r < 0) {
+                debugf("read error: %d\n", r);
+            }
+            exit();
+        }
+        
+        if (c == '\b' || c == 0x7f) {
+            // Backspace: 删除光标左侧字符
+            if (cursor > 0) {
+				cursor--;
 				i -= 2;
-			} else {
-				i = -1;
-			}
-			if (buf[i] != '\b') {
 				printf("\b");
+				for(int k = cursor; k <= i; k++) {
+					buf[k] = buf[k + 1];
+					printf("%c", buf[k]);
+				}
+				printf(" \b");
+				for(int k = cursor; k <= i; k++) printf("\b");
+			} else {
+				i -= 1;
+				printf("\b ");
 			}
-		}
-		if (buf[i] == '\r' || buf[i] == '\n') {
-			buf[i] = 0;
-			return;
-		}
-	}
-	debugf("line too long\n");
-	while ((r = read(0, buf, 1)) == 1 && buf[0] != '\r' && buf[0] != '\n') {
-		;
-	}
-	buf[0] = 0;
+        } else if (c == 27) {
+            char c1, c2;
+            if ((r = read(0, &c1, 1)) != 1) {
+                if (r < 0) debugf("read error: %d\n", r);
+                exit();
+            }
+            if ((r = read(0, &c2, 1)) != 1) {
+                if (r < 0) debugf("read error: %d\n", r);
+                exit();
+            }
+            
+            if (c1 == 91) {
+                if (c2 == 67) {
+                    if (cursor < i)
+                        cursor++;
+                    else
+                        printf("\b");
+                } else if (c2 == 68) {
+                    if (cursor > 0) {
+                        cursor--;
+                    }
+					else
+                        printf("\033[C");
+                }
+
+				i--;
+            }
+        } else if (c == 1) {
+            // Ctrl-A: 光标跳至最前
+            while (cursor > 0) {
+                cursor--;
+                printf("\b");
+            }
+			i--;
+        } else if (c == 5) {
+            // Ctrl-E: 光标跳至最后
+            while (cursor < i) {
+                cursor++;
+                printf("\033[C");
+            }
+			i--;
+        } else if (c == 11) {
+            // Ctrl-K: 删除从当前光标处到最后的文本
+            if (cursor < i) {
+                // 清除从光标到行尾的内容
+                for (int j = cursor; j < i; j++) {
+                    printf(" ");
+                }
+                // 将光标移回原位置
+                for (int j = cursor; j < i; j++) {
+                    printf("\b");
+                }
+                i = cursor;
+            }
+        } else if (c == 21) {
+            // Ctrl-U: 删除从最开始到光标前的文本
+            if (cursor > 0) {
+                // 将光标后的内容移到开头
+                for (int j = 0; j < i - cursor; j++) {
+                    buf[j] = buf[cursor + j];
+                }
+                
+                // 清除整行并重新显示
+                for (int i = 0; i < cursor; i++) {
+                    printf("\b");
+                }
+                for(int j = 0; j < i; ++j) {
+                    printf(" ");
+                }
+                for(int j = 0; j < i; ++j) {
+                    printf("\b");
+                }
+
+                i -= cursor;
+                cursor = 0;
+                
+                // 重新显示内容
+                for (int i = 0; i < i; i++) {
+                    printf("%c", buf[i]);
+                }
+            }
+        } else if (c == 23) {
+            // Ctrl-W: 向左删除最近一个word
+            int start = cursor - 1;
+            
+            // 先跳过空白字符
+            while (start >= 0 && buf[start] == ' ') {
+                start--;
+				printf("\b");
+            }
+            
+            // 再删除非空白字符
+            while (start >= 0 && buf[start] != ' ') {
+                start--;
+				printf("\b");
+            }
+            
+            if (start < cursor) {
+                // 将光标后的内容向前移动
+                for (int k = start; k < i - (cursor - start); k++) {
+                    buf[k + 1] = buf[k + (cursor - start)];
+					printf("%c", buf[k + 1]);
+                }
+                
+                // 移动光标到删除开始位置
+                for (int k = 0; k < cursor - start - 1; k++) {
+                    printf(" ");
+                }
+                
+                // 重新显示从删除位置到行尾的内容
+                for (int k = start; k < i - 1; k++) {
+					printf("\b");
+                }
+                
+                i -= (cursor - start);
+                cursor = start + 1;
+            }
+        } else if (c == '\r' || c == '\n') {
+            // 回车: 结束输入
+            buf[i] = 0;
+            printf("\n");
+            return;
+        } else if (c >= 32 && c <= 126) {
+            for (int j = i; j > cursor; j--) {
+                buf[j] = buf[j - 1];
+            }
+			
+			for(int j = cursor + 1; j <= i; ++j) {
+				printf("%c", buf[j]);
+			}
+            
+			for(int j = i; j > cursor; --j)
+				printf("\b");
+
+            buf[cursor] = c;
+			cursor++;
+        }
+    }
+    
+    debugf("line too long\n");
+    while ((r = read(0, buf, 1)) == 1 && buf[0] != '\r' && buf[0] != '\n') {
+        ;
+    }
+    buf[0] = 0;
 }
 
 char buf[1024];

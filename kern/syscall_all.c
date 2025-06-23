@@ -558,6 +558,21 @@ int sys_read_dev(u_int va, u_int pa, u_int len) {
 	return 0;
 }
 
+int sys_env_chdir(u_int envid, char *path) {
+	struct Env *e;
+	try(envid2env(envid, &e, 1));
+	strcpy(e->env_work_path, path);
+	return 0;
+}
+
+int sys_env_getpwd(u_int envid, char *buf) {
+	struct Env *e;
+	try(envid2env(envid, &e, 1));
+	// printk("env %08x work path: %s, write to address %d\n", e->env_id, e->env_work_path, buf);
+	strcpy(buf, e->env_work_path);
+	return 0;
+}
+
 void *syscall_table[MAX_SYSNO] = {
     [SYS_putchar] = sys_putchar,
     [SYS_print_cons] = sys_print_cons,
@@ -577,6 +592,8 @@ void *syscall_table[MAX_SYSNO] = {
     [SYS_cgetc] = sys_cgetc,
     [SYS_write_dev] = sys_write_dev,
     [SYS_read_dev] = sys_read_dev,
+	[SYS_env_chdir] = sys_env_chdir,
+	[SYS_env_getpwd] = sys_env_getpwd,
 };
 
 /* Overview:
