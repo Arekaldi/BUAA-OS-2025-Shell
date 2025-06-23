@@ -1,4 +1,5 @@
 #include <lib.h>
+#include <env_var.h>
 
 int main(int argc, char **argv) {
 	int i, nflag;

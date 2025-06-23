@@ -1,9 +1,13 @@
 #include <args.h>
 #include <lib.h>
 #include <cd.h>
+#include <env_var.h>
 
 #define WHITESPACE " \t\r\n"
 #define SYMBOLS "<|>&;()"
+
+int num_env_vars = 0;
+struct EnvVar environ[ENV_VAR_MAX];
 
 /* Overview:
  *   Parse the next token from the string at s.
@@ -20,6 +24,25 @@
  *   The buffer is modified to turn the spaces after words into zero bytes ('\0'), so that the
  *   returned token is a null-terminated string.
  */
+
+const static char *builtin_commands[] = {
+	"cd",
+	"pwd",
+	"exit",
+	"declare",
+	"unset",
+	NULL
+};
+
+int is_builtin_command(char *cmd) {
+    for (int i = 0; builtin_commands[i] != NULL; i++) {
+        if (strcmp(cmd, builtin_commands[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int _gettoken(char *s, char **p1, char **p2) {
 	*p1 = 0;
 	*p2 = 0;
@@ -321,8 +344,8 @@ void readline(char *buf, u_int n) {
                 cursor = 0;
                 
                 // 重新显示内容
-                for (int i = 0; i < i; i++) {
-                    printf("%c", buf[i]);
+                for (int j = 0; j < i; j++) {
+                    printf("%c", buf[j]);
                 }
             }
         } else if (c == 23) {
@@ -398,6 +421,7 @@ void usage(void) {
 }
 
 int main(int argc, char **argv) {
+	num_env_vars = getEnvVar(argc, argv);
 	int r;
 	int interactive = iscons(0);
 	int echocmds = 0;
@@ -440,6 +464,9 @@ int main(int argc, char **argv) {
 		if (echocmds) {
 			printf("# %s\n", buf);
 		}
+
+		debugf("running shell with cmd %s\n", buf);
+
 		if ((r = fork()) < 0) {
 			user_panic("fork: %d", r);
 		}
@@ -451,4 +478,198 @@ int main(int argc, char **argv) {
 		}
 	}
 	return 0;
+}
+int getEnvVar(int argc, char **argv) {
+    int flag = 0;
+    int num = 0;
+    for(int i = 0; i < argc; ++i) {
+        if(strcmp(argv[i], "areka") == 0) {
+            flag = 1;
+            continue;
+        }
+        if(flag) {
+            if(num < ENV_VAR_MAX) {
+                strncpy(environ[num].name, argv[i], 16);
+                strncpy(environ[num].value, argv[i + 1], 16);
+                environ[num].type = argv[i + 2][0] == '0' ? ENV_VAR_TYPE_PART : ENV_VAR_TYPE_ENV;
+                environ[num].readOnly = (argv[i + 3][0] - '0');
+                environ[num].valid = 1;
+                num++;
+                i += 3;
+            } else {
+                debugf("too many environment variables\n");
+            }
+        }
+    }
+    return num;
+}
+
+void passEnvVarToChild(int *argc, char **argv) {
+    strcpy(argv[*argc], "areka");
+    (*argc)++;
+    for(int i = 0; i < num_env_vars; ++i) {
+        if(environ[i].type == ENV_VAR_TYPE_PART || environ[i].valid == 0)
+            continue;
+        strncpy(argv[*argc], environ[i].name, 16);
+        strncpy(argv[*argc + 1], environ[i].value, 16);
+        argv[*argc + 2][0] = (environ[i].type == ENV_VAR_TYPE_PART) ? '0' : '1';
+        argv[*argc + 3][0] = environ[i].readOnly + '0';
+        *argc += 4;
+    }
+    return;
+}
+
+int findIdByName(char *name) {
+    for(int i = 0; i < num_env_vars; ++i) {
+        if(strcmp(environ[i].name, name) == 0 && environ[i].valid == 1) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void printEnvVar(void) {
+    for(int i = 0; i < num_env_vars; ++i) {
+        if(environ[i].valid == 0)
+            continue;
+        printf("%s=%s\n", environ[i].name, environ[i].value);
+    }
+}
+
+int strchr_Pos(char *str, char c, int start_pos) {
+    for(int i = start_pos; str[i] != '\0'; i++) {
+        if(str[i] == c) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int isValidVarName(char *name) {
+    if(name == NULL || name[0] == '\0') {
+        return 0;
+    }
+    
+    // First character must be letter or underscore
+    if(!((name[0] >= 'a' && name[0] <= 'z') || 
+         (name[0] >= 'A' && name[0] <= 'Z') || 
+         name[0] == '_')) {
+        return 0;
+    }
+    
+    // Remaining characters must be letters, digits, or underscores
+    for(int i = 1; name[i] != '\0'; i++) {
+        if(!((name[i] >= 'a' && name[i] <= 'z') || 
+             (name[i] >= 'A' && name[i] <= 'Z') || 
+             (name[i] >= '0' && name[i] <= '9') || 
+             name[i] == '_')) {
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
+int declare_shell(int argc, char **argv) {
+    enum env_var_type type = ENV_VAR_TYPE_PART;
+    int readOnly = 0;
+    ARGBEGIN {
+        case 'x':
+            type = ENV_VAR_TYPE_ENV;
+            break;
+        case 'r':
+            readOnly = 1;
+            break;
+        default:
+            usage_declare();
+            return -1;
+    }
+    ARGEND
+
+    if(argc == 0 && type == ENV_VAR_TYPE_PART && readOnly == 0) {
+		return 0;
+	}
+	
+	if(argc == 1) {
+		int pos = strchr_Pos(argv[0], '=', 0);
+        if(pos == -1) {
+            environ[num_env_vars].type = type;
+            environ[num_env_vars].readOnly = readOnly;
+            strncpy(environ[num_env_vars].name, argv[0], 16);
+            environ[num_env_vars].value[0] = '\0';
+            num_env_vars++;
+            return 0;
+        }
+        int pos1 = strchr_Pos(argv[0], ' ', pos + 1);
+        if(pos1 != -1) {
+            // 含有多个 '='
+            printf("declare: \'%s\': not a valid identifier", argv[0]);
+            return -1;
+        }
+        char name[17];
+        char value[17];
+        strncpy(name, argv[0], pos);
+        name[pos] = '\0';
+
+        int id = findIdByName(name);
+        if(id != -1) {
+            if(environ[id].readOnly) {
+                printf("declare: \'%s\': read-only variable\n", name);
+                return -1;
+            }
+        }
+
+        strncpy(value, argv[0] + pos + 1, 16);
+        if(!isValidVarName(name)) {
+            printf("declare: \'%s\': not a valid identifier\n", name);
+            return -1;
+        }
+        if(strlen(value) > 16) {
+            printf("declare: \'%s\': value too long\n", value);
+            return -1;
+        }
+        if(strlen(name) > 16) {
+            printf("declare: \'%s\': name too long\n", name);
+            return -1;
+        }
+
+        environ[num_env_vars].type = type;
+        environ[num_env_vars].readOnly = readOnly;
+        strncpy(environ[num_env_vars].name, name, 16);
+        strncpy(environ[num_env_vars].value, value, 16);
+        num_env_vars++;
+        return 0;
+    }
+
+	usage_declare();
+	return 1;
+}
+
+int unset_shell(int argc, char **argv) {
+    if(argc == 0) {
+        usage_unset();
+        return -1;
+    }
+    
+    for(int i = 0; i < argc; ++i) {
+        int id = findIdByName(argv[i]);
+        if(id == -1) {
+            printf("unset: \'%s\': not found\n", argv[i]);
+            continue;
+        }
+        if(environ[id].readOnly) {
+            printf("unset: \'%s\': read-only variable\n", argv[i]);
+            continue;
+        }
+        environ[id].valid = 0; // Mark as invalid
+    }
+    return 0;
+}
+
+void usage_declare(void) {
+    printf("usage: declare [-xr] [NAME [=VALUE]]\n");
+}
+
+void usage_unset(void) {
+    printf("usage: unset NAME\n");
 }
