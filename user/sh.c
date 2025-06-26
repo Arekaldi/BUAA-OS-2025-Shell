@@ -272,7 +272,7 @@ int run_builtin_command(char *cmd, int argc, char **argv) {
     } else if(strcmp(t, "declare") == 0) {
         declare_shell(argc, argv);
     } else if(strcmp(t, "unset") == 0) {
-        // unset_shell(argc, argv);
+        unset_shell(argc, argv);
     }
 }
 
@@ -292,13 +292,13 @@ int runbuf(char *buf) {
         num++;
     }
 
-    for(int i = 0; i < num; ++i) {
-        debugf("argv[%d]: ", i);
-        for(int j = 0; j < argc[i]; ++j) {
-            debugf("%s ", argv[i][j]);
-        }
-        debugf("\n");
-    }
+    // for(int i = 0; i < num; ++i) {
+    //     debugf("argv[%d]: ", i);
+    //     for(int j = 0; j < argc[i]; ++j) {
+    //         debugf("%s ", argv[i][j]);
+    //     }
+    //     debugf("\n");
+    // }
 
     char cmd[MAXARGS], temp_cmd[MAXARGS];
     int run_res[MAXARGS];
