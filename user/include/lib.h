@@ -120,6 +120,7 @@ int read_map(int fd, u_int offset, void **blk);
 int remove(const char *path);
 int ftruncate(int fd, u_int size);
 int sync(void);
+int file_read(struct Fd *fd, void *buf, u_int n, u_int offset);
 
 #define user_assert(x)                                                                             \
 	do {                                                                                       \

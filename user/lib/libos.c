@@ -12,6 +12,11 @@ void exit(void) {
 	user_panic("unreachable code");
 }
 
+void exit_my(u_int value, u_int f_envid) {
+	close_all();
+	syscall_ipc_try_send(f_envid, value, 0, 0);
+}
+
 const volatile struct Env *env;
 extern int main(int, char **);
 

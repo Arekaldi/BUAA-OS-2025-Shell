@@ -4,7 +4,7 @@
 #include <env_var.h>
 
 #define WHITESPACE " \t\r\n"
-#define SYMBOLS "<|>&;()"
+#define SYMBOLS "<|>&;()#"
 
 int num_env_vars = 0;
 struct EnvVar environ[ENV_VAR_MAX];
@@ -33,15 +33,6 @@ const static char *builtin_commands[] = {
 	"unset",
 	NULL
 };
-
-int is_builtin_command(char *cmd) {
-    for (int i = 0; builtin_commands[i] != NULL; i++) {
-        if (strcmp(cmd, builtin_commands[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
 
 int _gettoken(char *s, char **p1, char **p2) {
 	*p1 = 0;
@@ -88,9 +79,10 @@ int gettoken(char *s, char **p1) {
 }
 
 #define MAXARGS 128
+#define MAXCMD 128
 
 int parsecmd(char **argv, int *rightpipe) {
-	int argc = 0;
+    int argc = 0;
 	while (1) {
 		char *t;
 		int fd, r;
@@ -126,7 +118,15 @@ int parsecmd(char **argv, int *rightpipe) {
 
 			break;
 		case '>':
-			if (gettoken(0, &t) != 'w') {
+            int c1 = gettoken(0, &t);
+            //a1 >> a2
+            if(c1 == '>') {
+                fd = open(t, O_RDWR | O_CREAT | O_TRUNC);
+                char buf[MAXFILESIZE];
+                // int r = file_read(fd, buf, MAXFILESIZE, 0);
+                
+            }
+			else if (c1 != 'w') {
 				debugf("syntax error: > not followed by word\n");
 				exit();
 			}
@@ -189,13 +189,157 @@ int parsecmd(char **argv, int *rightpipe) {
 			// user_panic("| not implemented");
 
 			break;
-		}
-	}
-
+        }
+    }
 	return argc;
 }
 
-void runcmd(char *s) {
+int parseAndOr(char **argv, char *andP, char *orP, char *endP) {
+    int argc = 0;
+	while (1) {
+		char *t;
+		int r;
+		int c = gettoken(0, &t);
+		switch (c) {
+		case 0:
+			return argc;
+		case 'w':
+			if (argc >= MAXARGS) {
+				debugf("too many arguments\n");
+				exit();
+			}
+			argv[argc++] = t;
+			break;
+		case '|':
+            r = gettoken(0, &t);
+            if(r == '|') {
+                argv[argc++] = (char *)orP;
+                return argc;
+            }
+            if(argc == 0) {
+                debugf("invalid arguments\n");
+                exit();
+            }
+            strcat(argv[argc - 1], " |");
+            argv[argc++] =  t;
+            break;
+        
+        case '&':
+            r = gettoken(0, &t);
+            if(r != '&') {
+                debugf("syntax error: & not followed by another &\n");
+                exit();
+            }
+            argv[argc++] = (char *)andP;
+            return argc;
+
+        case ';':
+            argv[argc++] = (char *)endP;
+            return argc;
+        case '#':
+            return argc;
+        }
+    }
+	return argc;
+}
+
+int is_builtin_command(char *cmd) {
+    gettoken(cmd, 0);
+    char *t;
+    int r = gettoken(0, &t);
+    if(r != 'w')
+        return -1;
+    for (int i = 0; builtin_commands[i] != NULL; i++) {
+        if (strcmp(t, builtin_commands[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int run_builtin_command(char *cmd, int argc, char **argv) {
+    gettoken(cmd, 0);
+    char *t;
+    int r = gettoken(0, &t);
+    if(r != 'w')
+        return -1;
+    if(strcmp(t, "cd") == 0) {
+        cd_shell(argc, argv);
+    } else if(strcmp(t, "pwd") == 0) {
+        pwd_shell(argc, argv);
+    } else if(strcmp(t, "exit") == 0) {
+        exit();
+    } else if(strcmp(t, "declare") == 0) {
+        declare_shell(argc, argv);
+    } else if(strcmp(t, "unset") == 0) {
+        // unset_shell(argc, argv);
+    }
+}
+
+int runbuf(char *buf) {
+    char andP[3], orP[3], endP[2];
+    strcpy(andP, "&&");
+    strcpy(orP, "||");
+    strcpy(endP, ";");
+    int argc[MAXARGS];
+    int num = 0;
+    gettoken(buf, 0);
+    char *argv[MAXARGS][MAXARGS];
+    while(1) {
+        int c = parseAndOr(argv[num], andP, orP, endP);
+        if(c == 0) break;
+        argc[num] = c;
+        num++;
+    }
+
+    for(int i = 0; i < num; ++i) {
+        debugf("argv[%d]: ", i);
+        for(int j = 0; j < argc[i]; ++j) {
+            debugf("%s ", argv[i][j]);
+        }
+        debugf("\n");
+    }
+
+    char cmd[MAXARGS], temp_cmd[MAXARGS];
+    int run_res[MAXARGS];
+    for(int i = 0; i < num - 1; ++i) {
+        memset(cmd, 0, sizeof(cmd));
+        for(int j = 0; j < argc[i] - 1; ++j) {
+            strcat(cmd, " ");
+            strcat(cmd, argv[i][j]);
+        }
+
+        strcpy(temp_cmd, cmd);
+
+        int r = is_builtin_command(temp_cmd);
+        if(r == -1) {
+            debugf("invaild command\n");
+            exit;
+        }
+        if(r == 1)
+            run_builtin_command(cmd, argc[i] - 1, argv[i]);
+        else {
+            syscall_ipc_recv(&run_res[i]);
+            int f_envid = syscall_getenvid();
+            int child = fork();
+            if (child < 0) {
+                debugf("fork failed for command %s\n", cmd);
+                exit();
+            }
+            if(child == 0) {
+                runcmd(cmd, f_envid);
+            }
+            else {
+                
+            }
+        }
+    }
+
+    return 0;
+}
+
+void runcmd(char *s, int f_envid) {
+    debugf("running runcmd with %s\n", s);
 	gettoken(s, 0);
 
 	char *argv[MAXARGS];
@@ -205,25 +349,9 @@ void runcmd(char *s) {
 		return;
 	}
 
-	debugf("runcmd: %s\n", s);
-	for(int i = 0; i < argc; i++) {
-		debugf("argv[%d] = '%s'\n", i, argv[i]);
-	}
-	if(strcmp(argv[0], "cd") == 0) {
-		if (cd_shell(argc, argv) < 0) {
-		}
-		return;
-	}
-	else if(strcmp(argv[0], "pwd") == 0) {
-		if (pwd_shell(argc, argv) < 0) {
-		}
-		return;
-	}
-	else if(strcmp(argv[0], "exit") == 0) {
-		exit();
-	}
-
 	argv[argc] = 0;
+
+    passEnvVarToChild(&argc, argv);
 
 	int child = spawn(argv[0], argv);
 	close_all();
@@ -465,20 +593,13 @@ int main(int argc, char **argv) {
 			printf("# %s\n", buf);
 		}
 
-		debugf("running shell with cmd %s\n", buf);
-
-		if ((r = fork()) < 0) {
-			user_panic("fork: %d", r);
-		}
-		if (r == 0) {
-			runcmd(buf);
-			exit();
-		} else {
-			wait(r);
-		}
+        runbuf(buf);
 	}
 	return 0;
 }
+
+
+
 int getEnvVar(int argc, char **argv) {
     int flag = 0;
     int num = 0;
@@ -586,11 +707,24 @@ int declare_shell(int argc, char **argv) {
     }
     ARGEND
 
-    if(argc == 0 && type == ENV_VAR_TYPE_PART && readOnly == 0) {
-		return 0;
+    if(argc == 0) {
+        debugf("%d\n", num_env_vars);
+        for(int i = 0; i < num_env_vars; ++i) {
+            if(!environ[i].valid)
+                continue;
+            if(environ[i].type == ENV_VAR_TYPE_ENV)
+                printf("$%s=%s\n", environ[i].name, environ[i].value);
+        }
+        for(int i = 0; i < num_env_vars; ++i) {
+            if(!environ[i].valid)
+                continue;
+             if(environ[i].type == ENV_VAR_TYPE_PART)
+                printf("$%s=%s\n", environ[i].name, environ[i].value);
+        }
+        return 0;
 	}
 	
-	if(argc == 1) {
+	else if(argc == 1) {
 		int pos = strchr_Pos(argv[0], '=', 0);
         if(pos == -1) {
             environ[num_env_vars].type = type;
@@ -613,7 +747,7 @@ int declare_shell(int argc, char **argv) {
 
         int id = findIdByName(name);
         if(id != -1) {
-            if(environ[id].readOnly) {
+            if(environ[id].readOnly && environ[id].valid) {
                 printf("declare: \'%s\': read-only variable\n", name);
                 return -1;
             }
@@ -637,6 +771,7 @@ int declare_shell(int argc, char **argv) {
         environ[num_env_vars].readOnly = readOnly;
         strncpy(environ[num_env_vars].name, name, 16);
         strncpy(environ[num_env_vars].value, value, 16);
+        environ[num_env_vars].valid = 1;
         num_env_vars++;
         return 0;
     }
