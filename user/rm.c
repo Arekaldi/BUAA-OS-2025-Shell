@@ -18,6 +18,13 @@ int main(int argc, char **argv) {
         user_panic("touch: no envid found in arguments");
         exit();
     }
+    
+    for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
 
     u_int continuing = 0, force = 0;
 	ARGBEGIN {

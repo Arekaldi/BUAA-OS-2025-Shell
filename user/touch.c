@@ -22,6 +22,13 @@ int main(int argc, char **argv) {
         exit();
     }
 
+    for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
+
 	ARGBEGIN {
         default:
             usage_touch(f_envid);

@@ -29,12 +29,19 @@ int main(int argc, char **argv) {
         exit();
     }
 
+	for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
+
 	int f, i;
 
-	if (argc == 3) {
+	if (argc == 1) {
 		cat(0, "<stdin>");
 	} else {
-		for (i = 1; i < argc - 2; i++) {
+		for (i = 1; i < argc; i++) {
 			char *path = resolvePath(argv[i], workPath);
 			f = open(path, O_RDONLY);
 			if (f < 0) {

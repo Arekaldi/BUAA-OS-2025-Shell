@@ -18,13 +18,8 @@ struct EnvVar {
     u_int valid;
 };
 
-
-int getEnvVar(int argc, char **argv);
-void passEnvVarToChild(int *argc, char **argv);
-int findIdByName(char *name);
 int declare_shell(int argc, char **argv);
 int unset_shell(int argc, char **argv);
-void printEnvVar(void);
 void usage_declare(void);
 void usage_unset(void);
 int strchr_Pos(char *str, char c, int start_pos);

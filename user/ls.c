@@ -1,3 +1,4 @@
+#include <cd.h>
 #include <lib.h>
 
 int flag[256];
@@ -83,12 +84,20 @@ int main(int argc, char **argv) {
 	char workPath[MAX_PATH];
 	syscall_env_getpwd(syscall_getenvid(), workPath);
 
-	if (argc == 2) {
+	for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
+
+	if (argc == 0) {
 		ls(workPath, "");
 	} else {
-		for (i = 0; i < argc - 2; i++) {
+		for (i = 0; i < argc; i++) {
 			//TODO
-			ls(argv[i], argv[i]);
+			char *path = resolvePath(argv[i], workPath);
+			ls(path, path);
 		}
 	}
 	printf("\n");

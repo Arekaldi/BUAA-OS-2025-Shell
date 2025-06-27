@@ -32,6 +32,13 @@ int main(int argc, char **argv) {
         exit();
     }
 
+    for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
+
     int ign_fault = 0;
 
 	ARGBEGIN {
@@ -43,7 +50,7 @@ int main(int argc, char **argv) {
         }
     ARGEND
 
-    if(argc < 3) {
+    if(argc != 1) {
         usage_mkdir(f_envid);
     }
 

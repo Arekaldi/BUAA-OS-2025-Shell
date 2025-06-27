@@ -9,6 +9,11 @@
 int num_env_vars = 0;
 struct EnvVar environ[ENV_VAR_MAX];
 
+int getEnvVar(int argc, char **argv);
+void passEnvVarToChild(int *argc, char **argv);
+int findIdByName(char *name);
+void printEnvVar(void);
+
 /* Overview:
  *   Parse the next token from the string at s.
  *
@@ -363,7 +368,42 @@ int runbuf(char *buf, char *workPath) {
         memset(cmd, 0, sizeof(cmd));
         for(int j = 0; j < argc[i] - (i != num - 1); ++j) {
             strcat(cmd, " ");
-            strcat(cmd, argv[i][j]);
+            int flag = 0;
+            memset(temp_cmd, 0, sizeof(temp_cmd));
+            strcpy(temp_cmd, argv[i][j]);
+            // debugf("argv: %s, temp_cmd: %s\n", argv[i][j], temp_cmd);
+            while(strchr(temp_cmd, '$') != 0) {
+                flag = 1;
+                int pos = strchr_Pos(temp_cmd, '$', 0);
+                char temp[MAXARGS];
+                memset(temp, 0, sizeof(temp));
+                strncpy(temp, temp_cmd, pos);
+                // debugf("now here before $: %s\n", temp);
+                int p = pos;
+                while (temp_cmd[p] && !strchr(WHITESPACE SYMBOLS, temp_cmd[p]) && temp_cmd[p] != '/')
+                    p++;
+                char name[MAXARGS];
+                strncpy(name, temp_cmd + pos + 1, p - pos - 1);
+                name[p - pos - 1] = '\0'; // Null-terminate the name
+                int id = findIdByName(name);
+                if(id == -1) {
+                    // debugf("env var %s not found\n", name);
+                    flag = 0;
+                    break;
+                }
+                strcat(temp, environ[id].value);
+                // debugf("now here add value: %s\n", temp);
+                strcat(temp, temp_cmd + p);
+                // debugf("now here after env_var: %s\n", temp);
+                strcpy(temp_cmd, temp);
+                // debugf("%s\n", temp_cmd);
+            }
+            if(flag) {
+                strcat(cmd, temp_cmd);
+                strcpy(argv[i][j], temp_cmd);
+            }
+            else
+                strcat(cmd, argv[i][j]);
             //TODO ls.b
         }
 
@@ -588,6 +628,13 @@ int main(int argc, char **argv) {
     char workPath[MAX_PATH];
     syscall_env_getpwd(syscall_getenvid(), workPath);
 
+    for(int i = 0; i < argc; ++i) {
+		if(strcmp(argv[i], "areka") == 0) {
+			argc = i - 1;
+			break;
+		}
+	}
+
 	int r;
 	int interactive = iscons(0);
 	int echocmds = 0;
@@ -636,8 +683,6 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-
-
 int getEnvVar(int argc, char **argv) {
     int flag = 0;
     int num = 0;
@@ -663,7 +708,7 @@ int getEnvVar(int argc, char **argv) {
     return num;
 }
 
-char zero = '0', one = '1';
+char zero[] = "0", one[] = "1";
 char areka[] = "areka";
 char name[MAXARGS][17];
 char value[MAXARGS][17];
@@ -680,8 +725,8 @@ void passEnvVarToChild(int *argc, char **argv) {
         strncpy(value[i], environ[i].value, 16);
         argv[*argc] = name[i];
         argv[*argc + 1] = value[i];
-        argv[*argc + 2] = (environ[i].type == ENV_VAR_TYPE_PART) ? &zero : &one;
-        argv[*argc + 3] = environ[i].readOnly ? &one : &zero;
+        argv[*argc + 2] = (environ[i].type == ENV_VAR_TYPE_PART) ? zero : one;
+        argv[*argc + 3] = environ[i].readOnly ? one : zero;
         *argc += 4;
     }
     return;
@@ -760,13 +805,13 @@ int declare_shell(int argc, char **argv) {
             if(!environ[i].valid)
                 continue;
             if(environ[i].type == ENV_VAR_TYPE_ENV)
-                printf("$%s=%s\n", environ[i].name, environ[i].value);
+                printf("%s=%s\n", environ[i].name, environ[i].value);
         }
         for(int i = 0; i < num_env_vars; ++i) {
             if(!environ[i].valid)
                 continue;
              if(environ[i].type == ENV_VAR_TYPE_PART)
-                printf("$%s=%s\n", environ[i].name, environ[i].value);
+                printf("%s=%s\n", environ[i].name, environ[i].value);
         }
         return 0;
 	}
@@ -798,6 +843,13 @@ int declare_shell(int argc, char **argv) {
                 printf("declare: \'%s\': read-only variable\n", name);
                 return -1;
             }
+            strncpy(value, argv[0] + pos + 1, 16);
+
+            environ[id].type = type;
+            environ[id].readOnly = readOnly;
+            strncpy(environ[id].value, value, 16);
+            environ[id].valid = 1;
+            return 0;
         }
 
         strncpy(value, argv[0] + pos + 1, 16);
