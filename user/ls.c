@@ -68,21 +68,26 @@ void usage(void) {
 int main(int argc, char **argv) {
 	int i;
 
+
 	ARGBEGIN {
-	default:
-		usage();
-	case 'd':
-	case 'F':
-	case 'l':
-		flag[(u_char)ARGC()]++;
-		break;
+		default:
+			usage();
+		case 'd':
+		case 'F':
+		case 'l':
+			flag[(u_char)ARGC()]++;
+			break;
 	}
 	ARGEND
 
-	if (argc == 0) {
-		ls("/", "");
+	char workPath[MAX_PATH];
+	syscall_env_getpwd(syscall_getenvid(), workPath);
+
+	if (argc == 2) {
+		ls(workPath, "");
 	} else {
-		for (i = 0; i < argc; i++) {
+		for (i = 0; i < argc - 2; i++) {
+			//TODO
 			ls(argv[i], argv[i]);
 		}
 	}

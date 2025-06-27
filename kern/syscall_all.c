@@ -274,6 +274,7 @@ int sys_exofork(void) {
 
 	e->env_status = ENV_NOT_RUNNABLE;
 	e->env_pri = curenv->env_pri;
+	strcpy(e->env_work_path, curenv->env_work_path);
 
 	return e->env_id;
 }
@@ -573,6 +574,27 @@ int sys_env_getpwd(u_int envid, char *buf) {
 	return 0;
 }
 
+int sys_get_child_message(u_int envid) {
+	struct Env *e;
+	try(envid2env(envid, &e, 1));
+	u_int value;
+	value = e->env_child_message;
+
+	printk("[%08x] get child message %d from %08x\n", curenv->env_id, value, e->env_id);
+
+	return value;
+}
+
+int sys_send_message_f(u_int envid, u_int value) {
+	struct Env *e;
+
+	try(envid2env(envid, &e, 0));
+
+	e->env_child_message = value;
+	
+	return 0;
+}
+
 void *syscall_table[MAX_SYSNO] = {
     [SYS_putchar] = sys_putchar,
     [SYS_print_cons] = sys_print_cons,
@@ -594,6 +616,8 @@ void *syscall_table[MAX_SYSNO] = {
     [SYS_read_dev] = sys_read_dev,
 	[SYS_env_chdir] = sys_env_chdir,
 	[SYS_env_getpwd] = sys_env_getpwd,
+	[SYS_get_child_message] = sys_get_child_message,
+	[SYS_send_message_f] = sys_send_message_f,
 };
 
 /* Overview:

@@ -266,3 +266,7 @@ int remove(const char *path) {
 int sync(void) {
 	return fsipc_sync();
 }
+
+int my_file_create(const char *path, int isdir) {
+	return fsipc_create(path, isdir);
+}

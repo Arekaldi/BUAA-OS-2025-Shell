@@ -21,22 +21,23 @@ char** strtok(char *str, const char delim) {
     static char res[MAXPATH][MAXPATH];
     static char* ptrs[MAXPATH + 1]; 
     
-    // 分割字符串
     int len = strlen(str);
-    int num = 0, lst = 0;
-    for(int i = 0; i < len; ++i) {
-        if((i + 1 == len || str[i] == delim) && i != lst) {
-            int copy_len = i - lst + (i + 1 == len);
-            
-            strncpy(res[num], str + lst + !(i != 0 && lst == 0), copy_len);
-            res[num][copy_len] = '\0';
-            ptrs[num] = res[num];
-            num++;
-            lst = i;
+    int num = 0;
+    int start = 0;
+    
+    for(int i = 0; i <= len; ++i) {
+        // 遇到分隔符或字符串结束
+        if(i == len || str[i] == delim) {
+            if(i > start) {
+                int copy_len = i - start;
+                strncpy(res[num], str + start, copy_len);
+                res[num][copy_len] = '\0';
+                ptrs[num] = res[num];
+                num++;
+            }
+            start = i + 1;
         }
     }
-    
-    // 结束标记
     strcpy(res[num], "/");
     ptrs[num] = res[num];
     
@@ -56,29 +57,34 @@ char* resolvePath(char *path, char *workPath) {
 
     // cd ./../areka/.. -> cd ..
     while((r[i][0] != '/' || r[i][1] != '\0') && i < MAXPATH) {
-        // 父目录
         if(strcmp(r[i], "..") == 0) {
-            if(strcmp(nowWorkPath, "/") != 0) {
-                // 去掉最后一个 '/'
-                int len = strlen(nowWorkPath);
-                len--;
-                for(; nowWorkPath[len] != '/'; --len);
-                nowWorkPath[len + 1] = '\0';
+            int len = strlen(nowWorkPath);
+            if(len == 1 && nowWorkPath[0] == '/') {
+                i++;
+                continue;
+            }
+            if(nowWorkPath[len - 1] == '/') {
+                nowWorkPath[len - 1] = '\0';
+            }
+            for(int i = len - 1; i >= 0; --i) {
+                if(nowWorkPath[i] == '/') {
+                    nowWorkPath[i] = (i == 0) ? '/' : '\0';
+                    nowWorkPath[i + 1] = '\0';
+                    break;
+                }
             }
         }
-        else if(strcmp(r[i], ".") != 0) {
+        else if(strcmp(r[i], ".") == 0) {
+            // cd .
+        }
+        else {
             int len = strlen(nowWorkPath);
             if(nowWorkPath[len - 1] != '/')
                 strcat(nowWorkPath, "/");
             strcat(nowWorkPath, r[i]);
         }
-        else {
-            // cd .
-        }
         i++;
     }
-
-    strcat(nowWorkPath, "/");
 
     return nowWorkPath;
 }
@@ -107,17 +113,13 @@ int cd_shell(int argc, char **argv) {
     char workPath[MAX_PATH];
     syscall_env_getpwd(syscall_getenvid(), workPath);
 
-    debugf("cd_shell: current work path is '%s'\n", workPath);
-
     if(argc > 2) {
         printf("Too many args for cd command\n");
         return 1;
     }
-    else if(argc == 1) {
-        argc = 2;
-        argv[1] = "/";
-    }
-    char *path = resolvePath(argv[1], workPath);
+    char absolutePath[MAX_PATH];
+    strcpy(absolutePath, argc == 1 ? "/" : argv[1]);
+    char *path = resolvePath(absolutePath, workPath);
     return chdir_shell(path, argv);
 }
 

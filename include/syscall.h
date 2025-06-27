@@ -24,6 +24,8 @@ enum {
 	SYS_read_dev,
 	SYS_env_chdir,
 	SYS_env_getpwd,
+	SYS_get_child_message,
+	SYS_send_message_f,
 	MAX_SYSNO,
 };
 

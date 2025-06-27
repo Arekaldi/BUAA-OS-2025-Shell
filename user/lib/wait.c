@@ -8,3 +8,8 @@ void wait(u_int envid) {
 		syscall_yield();
 	}
 }
+
+void wait_my(u_int *value, u_int f_envid, u_int c_envid) {
+	wait(c_envid);
+	*value = syscall_get_child_message(f_envid);
+}

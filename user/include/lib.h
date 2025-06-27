@@ -15,6 +15,7 @@
 
 // libos
 void exit(void) __attribute__((noreturn));
+void exit_my(u_int value, u_int f_envid) __attribute__((noreturn));
 
 extern const volatile struct Env *env;
 
@@ -68,8 +69,10 @@ int syscall_ipc_recv(void *dstva);
 int syscall_cgetc(void);
 int syscall_write_dev(void *va, u_int dev, u_int len);
 int syscall_read_dev(void *va, u_int dev, u_int len);
-int syscall_env_chdir(u_int envid, char *path);
+int syscall_env_chdir(u_int envid, const char *path);
 int syscall_env_getpwd(u_int envid, char *buf);
+int syscall_get_child_message(u_int envid);
+int syscall_send_message_f(u_int envid, u_int value);
 
 // ipc.c
 void ipc_send(u_int whom, u_int val, const void *srcva, u_int perm);
@@ -77,6 +80,7 @@ u_int ipc_recv(u_int *whom, void *dstva, u_int *perm);
 
 // wait.c
 void wait(u_int envid);
+void wait_my(u_int *value, u_int f_envid, u_int c_envid);
 
 // console.c
 int opencons(void);
@@ -102,6 +106,7 @@ int fsipc_dirty(u_int, u_int);
 int fsipc_remove(const char *);
 int fsipc_sync(void);
 int fsipc_incref(u_int);
+int fsipc_create(const char *, u_int);
 
 // fd.c
 int close(int fd);
@@ -120,7 +125,13 @@ int read_map(int fd, u_int offset, void **blk);
 int remove(const char *path);
 int ftruncate(int fd, u_int size);
 int sync(void);
-int file_read(struct Fd *fd, void *buf, u_int n, u_int offset);
+int my_file_create(const char *path, int isdir);
+
+//pass_message.c
+u_int num2str(char *buf, u_int num);
+u_int str2num(char *buf, u_int *num);
+u_int get_f_envid(int argc, char **argv);
+u_int get_f_dir(const char *nowPath, char *f_dir);
 
 #define user_assert(x)                                                                             \
 	do {                                                                                       \

@@ -16,7 +16,7 @@ u_int syscall_getenvid(void) {
 	return msyscall(SYS_getenvid);
 }
 
-int syscall_env_chdir(u_int envid, char *path) {
+int syscall_env_chdir(u_int envid, const char *path) {
 	// debugf("syscalling chdir for envid %08x with path '%s'\n", envid, path);
 	return msyscall(SYS_env_chdir, envid, path);
 }
@@ -87,4 +87,12 @@ int syscall_write_dev(void *va, u_int dev, u_int size) {
 int syscall_read_dev(void *va, u_int dev, u_int size) {
 	/* Exercise 5.2: Your code here. (2/2) */
 	return msyscall(SYS_read_dev, va, dev, size);
+}
+
+int syscall_get_child_message(u_int envid) {
+	return msyscall(SYS_get_child_message, envid);
+}
+
+int syscall_send_message_f(u_int envid, u_int value) {
+	return msyscall(SYS_send_message_f, envid, value);
 }

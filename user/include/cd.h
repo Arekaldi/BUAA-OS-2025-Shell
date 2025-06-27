@@ -9,5 +9,6 @@ int cd_shell(int argc, char **argv);
 int pwd_shell(int argc, char **argv);
 char *strncpy(char *dest, const char *src, u_int n);
 char *strcat(char *dest, const char *src);
+char* resolvePath(char *path, char *workPath);
 
 #endif

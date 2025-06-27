@@ -13,8 +13,8 @@ void exit(void) {
 }
 
 void exit_my(u_int value, u_int f_envid) {
-	close_all();
-	syscall_ipc_try_send(f_envid, value, 0, 0);
+	syscall_send_message_f(f_envid, value);
+	exit();
 }
 
 const volatile struct Env *env;

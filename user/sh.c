@@ -81,8 +81,9 @@ int gettoken(char *s, char **p1) {
 #define MAXARGS 128
 #define MAXCMD 128
 
-int parsecmd(char **argv, int *rightpipe) {
+int parsecmd(char **argv, int *rightpipe, char *workPath) {
     int argc = 0;
+    char *path;
 	while (1) {
 		char *t;
 		int fd, r;
@@ -107,9 +108,10 @@ int parsecmd(char **argv, int *rightpipe) {
 			// utilize 'debugf' to print relevant messages,
 			// and subsequently terminate the process using 'exit'.
 			/* Exercise 6.5: Your code here. (1/3) */
-			fd = open(t, O_RDONLY);
+            path = resolvePath(t, workPath);
+			fd = open(path, O_RDONLY);
 			if (fd < 0) {
-				debugf("failed to open '%s'\n", t);
+				debugf("failed to open '%s'\n", path);
 				exit();
 			}
 			dup(fd, 0);
@@ -119,10 +121,11 @@ int parsecmd(char **argv, int *rightpipe) {
 			break;
 		case '>':
             int c1 = gettoken(0, &t);
+            path = resolvePath(t, workPath);
             //a1 >> a2
             if(c1 == '>') {
-                fd = open(t, O_RDWR | O_CREAT | O_TRUNC);
-                char buf[MAXFILESIZE];
+                fd = open(path, O_RDWR | O_CREAT | O_TRUNC);
+                // char buf[MAXFILESIZE];
                 // int r = file_read(fd, buf, MAXFILESIZE, 0);
                 
             }
@@ -136,9 +139,9 @@ int parsecmd(char **argv, int *rightpipe) {
 			// utilize 'debugf' to print relevant messages,
 			// and subsequently terminate the process using 'exit'.
 			/* Exercise 6.5: Your code here. (2/3) */
-			fd = open(t, O_WRONLY | O_CREAT | O_TRUNC);
+			fd = open(path, O_WRONLY | O_CREAT | O_TRUNC);
 			if (fd < 0) {
-				debugf("failed to open '%s'\n", t);
+				debugf("failed to open '%s'\n", path);
 				exit();
 			}
 			dup(fd, 1);
@@ -179,7 +182,7 @@ int parsecmd(char **argv, int *rightpipe) {
 				dup(p[0], 0);
 				close(p[0]);
 				close(p[1]);
-				return parsecmd(argv, rightpipe);
+				return parsecmd(argv, rightpipe, workPath);
 			} else {
 				dup(p[1], 1);
 				close(p[1]);
@@ -194,7 +197,8 @@ int parsecmd(char **argv, int *rightpipe) {
 	return argc;
 }
 
-int parseAndOr(char **argv, char *andP, char *orP, char *endP) {
+static char symbols[][2] = {"<", "|", ">", "&", ";", "(", ")", "#"};
+int parseAndOr(char **argv, char *andP, char *orP, char *endP, char *editP) {
     int argc = 0;
 	while (1) {
 		char *t;
@@ -237,7 +241,17 @@ int parseAndOr(char **argv, char *andP, char *orP, char *endP) {
             argv[argc++] = (char *)endP;
             return argc;
         case '#':
+            argv[argc++] = (char *)editP;
             return argc;
+
+        default:
+            for(int i = 0; i < 8; ++i) {
+                if(c == symbols[i][0]) {
+                    argv[argc++] = symbols[i];
+                    break;
+                }
+            }
+            break;
         }
     }
 	return argc;
@@ -274,20 +288,64 @@ int run_builtin_command(char *cmd, int argc, char **argv) {
     } else if(strcmp(t, "unset") == 0) {
         unset_shell(argc, argv);
     }
+    return 0;
 }
 
-int runbuf(char *buf) {
-    char andP[3], orP[3], endP[2];
+int runcmd(char *s, u_int f_envid, char *workPath) {
+	gettoken(s, 0);
+
+	char *argv[MAXARGS];
+	int rightpipe = 0;
+	int argc = parsecmd(argv, &rightpipe, workPath);
+	if (argc == 0) {
+		return 0;
+	}
+
+    argv[argc] = 0;
+
+    char env_id_str[12];
+    num2str(env_id_str, f_envid);
+    argv[argc++] = env_id_str; // Add the environment ID as the last argument
+
+    passEnvVarToChild(&argc, argv);
+
+	int child = spawn(argv[0], argv);
+    u_int r, rr;
+	close_all();
+	if (child >= 0) {
+        wait(child);
+		wait_my(&r, syscall_getenvid(), child);
+	} else {
+		debugf("spawn %s: %d\n", argv[0], child);
+	}
+	if (rightpipe) {
+		wait_my(&rr, syscall_getenvid(), rightpipe);
+	}
+    
+    //TODO
+    exit_my(0, f_envid);
+}
+
+int runbuf(char *buf, char *workPath) {
+    char andP[3], orP[3], endP[2], editP[2];
     strcpy(andP, "&&");
     strcpy(orP, "||");
     strcpy(endP, ";");
+    strcpy(editP, "#");
     int argc[MAXARGS];
     int num = 0;
     gettoken(buf, 0);
     char *argv[MAXARGS][MAXARGS];
     while(1) {
-        int c = parseAndOr(argv[num], andP, orP, endP);
+        int c = parseAndOr(argv[num], andP, orP, endP, editP);
         if(c == 0) break;
+        if(argv[num][c - 1] == editP) {
+            argv[num][c - 1] = NULL;
+            c--;
+            argc[num] = c;
+            num++;
+            break;
+        }
         argc[num] = c;
         num++;
     }
@@ -301,69 +359,45 @@ int runbuf(char *buf) {
     // }
 
     char cmd[MAXARGS], temp_cmd[MAXARGS];
-    int run_res[MAXARGS];
-    for(int i = 0; i < num - 1; ++i) {
+    for(int i = 0; i < num; ++i) {
         memset(cmd, 0, sizeof(cmd));
-        for(int j = 0; j < argc[i] - 1; ++j) {
+        for(int j = 0; j < argc[i] - (i != num - 1); ++j) {
             strcat(cmd, " ");
             strcat(cmd, argv[i][j]);
+            //TODO ls.b
         }
 
         strcpy(temp_cmd, cmd);
 
         int r = is_builtin_command(temp_cmd);
+        u_int rr;
         if(r == -1) {
             debugf("invaild command\n");
-            exit;
+            exit();
         }
         if(r == 1)
-            run_builtin_command(cmd, argc[i] - 1, argv[i]);
+            run_builtin_command(cmd, argc[i] - (i != num - 1), argv[i]);
         else {
-            syscall_ipc_recv(&run_res[i]);
+            // debugf("running command: %s\n", cmd);
             int f_envid = syscall_getenvid();
             int child = fork();
             if (child < 0) {
                 debugf("fork failed for command %s\n", cmd);
                 exit();
             }
+            
             if(child == 0) {
-                runcmd(cmd, f_envid);
+                runcmd(cmd, f_envid, workPath);
             }
             else {
-                
+                // wait(child);
+                wait_my(&rr, f_envid, child);
+                // debugf("parent: %d, child: %d, run_res[%d]: %d\n", f_envid, child, i, rr);
             }
         }
     }
 
     return 0;
-}
-
-void runcmd(char *s, int f_envid) {
-    debugf("running runcmd with %s\n", s);
-	gettoken(s, 0);
-
-	char *argv[MAXARGS];
-	int rightpipe = 0;
-	int argc = parsecmd(argv, &rightpipe);
-	if (argc == 0) {
-		return;
-	}
-
-	argv[argc] = 0;
-
-    passEnvVarToChild(&argc, argv);
-
-	int child = spawn(argv[0], argv);
-	close_all();
-	if (child >= 0) {
-		wait(child);
-	} else {
-		debugf("spawn %s: %d\n", argv[0], child);
-	}
-	if (rightpipe) {
-		wait(rightpipe);
-	}
-	exit();
 }
 
 void readline(char *buf, u_int n) {
@@ -550,6 +584,10 @@ void usage(void) {
 
 int main(int argc, char **argv) {
 	num_env_vars = getEnvVar(argc, argv);
+
+    char workPath[MAX_PATH];
+    syscall_env_getpwd(syscall_getenvid(), workPath);
+
 	int r;
 	int interactive = iscons(0);
 	int echocmds = 0;
@@ -593,7 +631,7 @@ int main(int argc, char **argv) {
 			printf("# %s\n", buf);
 		}
 
-        runbuf(buf);
+        runbuf(buf, workPath);
 	}
 	return 0;
 }
@@ -625,16 +663,25 @@ int getEnvVar(int argc, char **argv) {
     return num;
 }
 
+char zero = '0', one = '1';
+char areka[] = "areka";
+char name[MAXARGS][17];
+char value[MAXARGS][17];
+
 void passEnvVarToChild(int *argc, char **argv) {
-    strcpy(argv[*argc], "areka");
+    argv[*argc] = areka;
     (*argc)++;
+    memset(name, 0, sizeof(name));
+    memset(value, 0, sizeof(value));
     for(int i = 0; i < num_env_vars; ++i) {
         if(environ[i].type == ENV_VAR_TYPE_PART || environ[i].valid == 0)
             continue;
-        strncpy(argv[*argc], environ[i].name, 16);
-        strncpy(argv[*argc + 1], environ[i].value, 16);
-        argv[*argc + 2][0] = (environ[i].type == ENV_VAR_TYPE_PART) ? '0' : '1';
-        argv[*argc + 3][0] = environ[i].readOnly + '0';
+        strncpy(name[i], environ[i].name, 16);
+        strncpy(value[i], environ[i].value, 16);
+        argv[*argc] = name[i];
+        argv[*argc + 1] = value[i];
+        argv[*argc + 2] = (environ[i].type == ENV_VAR_TYPE_PART) ? &zero : &one;
+        argv[*argc + 3] = environ[i].readOnly ? &one : &zero;
         *argc += 4;
     }
     return;
@@ -708,7 +755,7 @@ int declare_shell(int argc, char **argv) {
     ARGEND
 
     if(argc == 0) {
-        debugf("%d\n", num_env_vars);
+        // debugf("%d\n", num_env_vars);
         for(int i = 0; i < num_env_vars; ++i) {
             if(!environ[i].valid)
                 continue;

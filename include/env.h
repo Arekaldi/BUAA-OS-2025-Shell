@@ -42,6 +42,8 @@ struct Env {
 	u_int env_runs; // number of times we've been env_run'ed
 
 	char env_work_path[MAX_PATH];
+
+	u_int env_child_message;
 };
 
 LIST_HEAD(Env_list, Env);
