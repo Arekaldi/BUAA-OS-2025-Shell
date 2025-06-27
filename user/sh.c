@@ -313,11 +313,7 @@ int run_builtin_command(char *cmd, int argc, char **argv) {
     
 static char newcmd[MAXARGS];
 
-void runcmd(char *s, u_int f_envid) {
-
-    char workPath[MAX_PATH];
-    syscall_env_getpwd(syscall_getenvid(), workPath);
-
+int runcmd(char *s, u_int f_envid, char *workPath) {
 	gettoken(s, 0);
 
 	char *argv[MAXARGS];
@@ -359,8 +355,6 @@ void runcmd(char *s, u_int f_envid) {
 		strcpy(newcmd, "/touch.b");
 		argv[0] = newcmd;
 	}
-
-    int now_envid = syscall_getenvid();
 
     char env_id_str[12];
     num2str(env_id_str, now_envid);
@@ -477,6 +471,7 @@ int runbuf(char *buf) {
             }
             else
                 strcat(cmd, argv[i][j]);
+            //TODO ls.b
         }
 
         strcpy(temp_cmd, cmd);
