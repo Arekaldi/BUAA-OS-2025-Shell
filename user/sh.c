@@ -290,7 +290,7 @@ int is_builtin_command(char *cmd) {
     return 0;
 }
 
-int run_builtin_command(char *cmd, int argc, char **argv) {
+int run_builtin_command(char *cmd, int argc, char **argv, char *workPath) {
 
     gettoken(cmd, 0);
     char *t;
@@ -298,7 +298,9 @@ int run_builtin_command(char *cmd, int argc, char **argv) {
     if(r != 'w')
         return -1;
     if(strcmp(t, "cd") == 0) {
-        return cd_shell(argc, argv);
+        int rr = cd_shell(argc, argv);
+        syscall_env_getpwd(syscall_getenvid(), workPath);
+        return rr;
     } else if(strcmp(t, "pwd") == 0) {
         return pwd_shell(argc, argv);
     } else if(strcmp(t, "exit") == 0) {
@@ -387,9 +389,7 @@ void runcmd(char *s, u_int f_envid, char *workPath) {
     exit_my(r == 0 ? 0 : -1, f_envid);
 }
 
-int runbuf(char *buf) {
-    char workPath[MAX_PATH];
-    syscall_env_getpwd(syscall_getenvid(), workPath);
+int runbuf(char *buf, char *workPath) {
     char andP[3], orP[3], endP[2], editP[2];
     strcpy(andP, "&&");
     strcpy(orP, "||");
@@ -502,7 +502,7 @@ int runbuf(char *buf) {
                 exit();
             }
             if(child == 0) {
-                runcmd(temp, syscall_getenvid());
+                runcmd(temp, syscall_getenvid(), workPath);
                 // runbuf(temp, workPath);
             }
             else {
@@ -544,7 +544,7 @@ int runbuf(char *buf) {
             // exit();
         }
         if(r == 1)
-            rr = run_builtin_command(cmd, argc[i] - (i != num - 1), argv[i]);
+            rr = run_builtin_command(cmd, argc[i] - (i != num - 1), argv[i], workPath);
         else {
             // debugf("running command: %s\n", cmd);
             int f_envid = syscall_getenvid();
@@ -555,7 +555,7 @@ int runbuf(char *buf) {
             }
             
             if(child == 0) {
-                runcmd(cmd, f_envid);
+                runcmd(cmd, f_envid, workPath);
             }
             else {
                 // wait(child);
@@ -878,7 +878,7 @@ int main(int argc, char **argv) {
 			printf("# %s\n", buf);
 		}
 
-        runbuf(buf);
+        runbuf(buf, workPath);
 	}
 	return 0;
 }
