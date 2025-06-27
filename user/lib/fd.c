@@ -277,6 +277,26 @@ int seek(int fdnum, u_int offset) {
 	return 0;
 }
 
+int write_extend(int fdnum, const void *buf, u_int n) {
+	int r;
+	struct Fd *fd;
+	
+	if ((r = fd_lookup(fdnum, &fd)) < 0) {
+		return r;
+	}
+
+	struct Filefd *f = (struct Filefd *)fd;
+	
+	if ((r = seek(fdnum, f->f_file.f_size) < 0)) {
+		return r;
+	}
+	
+	if(n == 0) return 0;
+
+	return write(fdnum, buf, n);
+
+}
+
 int fstat(int fdnum, struct Stat *stat) {
 	int r;
 	struct Dev *dev = NULL;

@@ -59,6 +59,8 @@ void *fd2data(struct Fd *);
 int fd2num(struct Fd *);
 int dev_lookup(int dev_id, struct Dev **dev);
 int num2fd(int fd);
+int write_extend(int fdnum, const void *buf, u_int n);
+
 extern struct Dev devcons;
 extern struct Dev devfile;
 extern struct Dev devpipe;

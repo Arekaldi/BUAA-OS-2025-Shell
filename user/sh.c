@@ -308,6 +308,37 @@ int runcmd(char *s, u_int f_envid, char *workPath) {
 
     argv[argc] = 0;
 
+    char newcmd[MAXARGS];
+    if(strcmp(argv[0], "echo") == 0 || strcmp(argv[0], "/echo") == 0) {
+		strcpy(newcmd, "/echo.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "history") == 0 && argc == 1) {
+		strcpy(newcmd, "/cat.b");
+		argv[0] = newcmd;
+		argv[argc++] = (char *)&"/.mos_history";
+	} else if(strcmp(argv[0], "ls") == 0 || strcmp(argv[0], "/ls") == 0) {
+		strcpy(newcmd, "/ls.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "cat") == 0 || strcmp(argv[0], "/cat") == 0) {
+		strcpy(newcmd, "/cat.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "halt") == 0 || strcmp(argv[0], "/halt") == 0) {
+		strcpy(newcmd, "/halt.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "rm") == 0 || strcmp(argv[0], "/rm") == 0) {
+		strcpy(newcmd, "/rm.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "sh") == 0 || strcmp(argv[0], "/sh") == 0) {
+		strcpy(newcmd, "/sh.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "mkdir") == 0 || strcmp(argv[0], "/mkdir") == 0) {
+		strcpy(newcmd, "/mkdir.b");
+		argv[0] = newcmd;
+	} else if(strcmp(argv[0], "touch") == 0 || strcmp(argv[0], "/touch") == 0) {
+		strcpy(newcmd, "/touch.b");
+		argv[0] = newcmd;
+	}
+
     char env_id_str[12];
     num2str(env_id_str, f_envid);
     argv[argc++] = env_id_str; // Add the environment ID as the last argument
@@ -440,10 +471,41 @@ int runbuf(char *buf, char *workPath) {
     return 0;
 }
 
+
+char history[20][1024];
+int cur_cmdnum = -1;
+
+void savecmd(char *s) {
+	if(cur_cmdnum >= 20) return;
+
+	int fd = open(".mos_history", O_WRONLY | O_CREAT );
+        
+	if(fd < 0) {
+        	debugf("failed to open .mos_history");
+                exit();
+        }
+        
+	int n = strlen(s);
+	if (write_extend(fd, s, n) != n) {
+		debugf("write error copying");
+		exit();
+        }
+	if (write(fd, &"\n", 1) != 1) {
+		debugf("write error copying");
+		exit();
+	}
+
+       	close(fd);
+
+	strcpy(history[cur_cmdnum], s);
+}
+
 void readline(char *buf, u_int n) {
+	cur_cmdnum++;
     int r;
     char c;
     int cursor = 0;  // 光标位置
+    int cmd_num = cur_cmdnum;
     
     for(int i = 0; i < n; ++i) {
         if ((r = read(0, &c, 1)) != 1) {
@@ -479,6 +541,44 @@ void readline(char *buf, u_int n) {
                 if (r < 0) debugf("read error: %d\n", r);
                 exit();
             }
+
+            if(c1 == 91 && c2 == 65) {
+				//上
+				printf("\033[B");
+				if(cmd_num > 0 && cmd_num < 20) {
+					if(cmd_num == cur_cmdnum) {
+						buf[i] = '\0';
+						strcpy(history[cur_cmdnum], buf);
+					}
+
+					while(cursor--) printf("\033[D");
+					for(int k = 0; k < i; k++) printf(" ");
+					for(int k = 0; k < i; k++) printf("\033[D");
+
+					cmd_num--;
+
+					int buflen = strlen(history[cmd_num]);
+					strcpy(buf, history[cmd_num]);
+					for(int k = 0; k < buflen; k++) printf("%c", buf[k]);
+					i = buflen;
+					cursor = buflen;
+				}
+			} else if(c1 == 91 && c2 == 66) {
+				//下
+				if(cmd_num < cur_cmdnum && cmd_num < 19) {
+					while(cursor--) printf("\033[D");
+					for(int k = 0; k < i; k++) printf(" ");
+					for(int k = 0; k < i; k++) printf("\033[D");
+
+					cmd_num++;
+
+					int buflen = strlen(history[cmd_num]);
+					strcpy(buf, history[cmd_num]);
+					for(int k = 0; k < buflen; k++) printf("%c", buf[k]);
+					i = buflen;
+					cursor = buflen;
+				}
+			}
             
             if (c1 == 91) {
                 if (c2 == 67) {
@@ -670,6 +770,8 @@ int main(int argc, char **argv) {
 			printf("\n$ ");
 		}
 		readline(buf, sizeof buf);
+
+        savecmd(buf);
 
 		if (buf[0] == '#') {
 			continue;
