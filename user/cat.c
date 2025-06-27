@@ -52,5 +52,8 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
+
+	exit_my(0, f_envid);
+
 	return 0;
 }

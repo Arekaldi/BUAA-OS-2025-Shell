@@ -126,15 +126,28 @@ int parsecmd(char **argv, int *rightpipe, char *workPath) {
 			break;
 		case '>':
             int c1 = gettoken(0, &t);
-            path = resolvePath(t, workPath);
             //a1 >> a2
             if(c1 == '>') {
-                fd = open(path, O_RDWR | O_CREAT | O_TRUNC);
-                // char buf[MAXFILESIZE];
-                // int r = file_read(fd, buf, MAXFILESIZE, 0);
-                
-            }
-			else if (c1 != 'w') {
+				if (gettoken(0, &t) != 'w') {
+					debugf("syntax error: >> not followed by word\n");
+					exit();
+				}
+				char *path = resolvePath(t, workPath);
+				fd = open(path, O_WRONLY | O_CREAT);
+				if(fd < 0) {
+					debugf("failed to open '%s'\n", path);
+					exit();
+				}
+				if (write_extend(fd, 0, 0) != 0) {
+                    debugf("write error copying\n");
+                    exit();
+                }
+
+				dup(fd, 1);
+				close(fd);
+				
+				break;
+			} else if (c1 != 'w') {
 				debugf("syntax error: > not followed by word\n");
 				exit();
 			}
@@ -144,6 +157,7 @@ int parsecmd(char **argv, int *rightpipe, char *workPath) {
 			// utilize 'debugf' to print relevant messages,
 			// and subsequently terminate the process using 'exit'.
 			/* Exercise 6.5: Your code here. (2/3) */
+            path = resolvePath(t, workPath);
 			fd = open(path, O_WRONLY | O_CREAT | O_TRUNC);
 			if (fd < 0) {
 				debugf("failed to open '%s'\n", path);
@@ -277,38 +291,45 @@ int is_builtin_command(char *cmd) {
 }
 
 int run_builtin_command(char *cmd, int argc, char **argv) {
+
     gettoken(cmd, 0);
     char *t;
     int r = gettoken(0, &t);
     if(r != 'w')
         return -1;
     if(strcmp(t, "cd") == 0) {
-        cd_shell(argc, argv);
+        return cd_shell(argc, argv);
     } else if(strcmp(t, "pwd") == 0) {
-        pwd_shell(argc, argv);
+        return pwd_shell(argc, argv);
     } else if(strcmp(t, "exit") == 0) {
         exit();
     } else if(strcmp(t, "declare") == 0) {
-        declare_shell(argc, argv);
+        return declare_shell(argc, argv);
     } else if(strcmp(t, "unset") == 0) {
-        unset_shell(argc, argv);
+        return unset_shell(argc, argv);
     }
-    return 0;
+    return -2;
 }
+    
+static char newcmd[MAXARGS];
 
-int runcmd(char *s, u_int f_envid, char *workPath) {
+void runcmd(char *s, u_int f_envid) {
+
+    char workPath[MAX_PATH];
+    syscall_env_getpwd(syscall_getenvid(), workPath);
+
 	gettoken(s, 0);
 
 	char *argv[MAXARGS];
 	int rightpipe = 0;
 	int argc = parsecmd(argv, &rightpipe, workPath);
 	if (argc == 0) {
-		return 0;
+		return;
 	}
 
     argv[argc] = 0;
 
-    char newcmd[MAXARGS];
+    memset(newcmd, 0, sizeof(newcmd));
     if(strcmp(argv[0], "echo") == 0 || strcmp(argv[0], "/echo") == 0) {
 		strcpy(newcmd, "/echo.b");
 		argv[0] = newcmd;
@@ -339,30 +360,39 @@ int runcmd(char *s, u_int f_envid, char *workPath) {
 		argv[0] = newcmd;
 	}
 
+    int now_envid = syscall_getenvid();
+
     char env_id_str[12];
-    num2str(env_id_str, f_envid);
+    num2str(env_id_str, now_envid);
     argv[argc++] = env_id_str; // Add the environment ID as the last argument
 
     passEnvVarToChild(&argc, argv);
 
+    u_int r = 0;
 	int child = spawn(argv[0], argv);
-    u_int r, rr;
 	close_all();
 	if (child >= 0) {
-        wait(child);
-		wait_my(&r, syscall_getenvid(), child);
+        // wait(child);
+        wait_my(&r, now_envid, child);
 	} else {
 		debugf("spawn %s: %d\n", argv[0], child);
+        exit_my(-1, f_envid);
+        // exit();
 	}
 	if (rightpipe) {
-		wait_my(&rr, syscall_getenvid(), rightpipe);
+        // if(f_envid != -1)
+        wait(rightpipe);
+        // wait_my(&rr, now_envid, rightpipe);
+        // else
+            // wait(rightpipe);
 	}
-    
-    //TODO
-    exit_my(0, f_envid);
+
+    exit_my(r == 0 ? 0 : -1, f_envid);
 }
 
-int runbuf(char *buf, char *workPath) {
+int runbuf(char *buf) {
+    char workPath[MAX_PATH];
+    syscall_env_getpwd(syscall_getenvid(), workPath);
     char andP[3], orP[3], endP[2], editP[2];
     strcpy(andP, "&&");
     strcpy(orP, "||");
@@ -394,9 +424,21 @@ int runbuf(char *buf, char *workPath) {
     //     debugf("\n");
     // }
 
-    char cmd[MAXARGS], temp_cmd[MAXARGS];
+    char cmd[MAXFILESIZE], temp_cmd[MAXFILESIZE];
+    int res[MAXARGS];
+    memset(res, 0, sizeof(res));
     for(int i = 0; i < num; ++i) {
         memset(cmd, 0, sizeof(cmd));
+        if(i != 0) {
+            if(strcmp(argv[i - 1][argc[i - 1] - 1], "||") == 0) {
+                if(res[i - 1] == 0)
+                    continue;
+            }
+            if(strcmp(argv[i - 1][argc[i - 1] - 1], "&&") == 0) {
+                if(res[i - 1] != 0)
+                    continue;
+            }
+        }
         for(int j = 0; j < argc[i] - (i != num - 1); ++j) {
             strcat(cmd, " ");
             int flag = 0;
@@ -435,30 +477,88 @@ int runbuf(char *buf, char *workPath) {
             }
             else
                 strcat(cmd, argv[i][j]);
-            //TODO ls.b
         }
 
         strcpy(temp_cmd, cmd);
+
+        char temp[MAXFILESIZE];
+        if(strchr(temp_cmd, '`')) {
+            int p = strchr_Pos(temp_cmd, '`', 0);
+            memset(temp, 0, sizeof(temp));
+            int pos = p;
+            while(temp_cmd[++pos] != '`');
+            strncpy(temp, temp_cmd + p + 1, pos - p - 1);
+
+            //TODO declare
+            if(strcmp(temp, "pwd") == 0) {
+                char pwd[MAXFILESIZE];
+                syscall_env_getpwd(syscall_getenvid(), pwd);
+                // debugf("pwd: %s\n", pwd);
+                strcpy(temp, pwd);
+                goto catching;
+            }
+
+            strcat(temp, " > /.mos_catch");
+            int child = fork();
+            if (child < 0) {
+                debugf("fork failed for command %s\n", cmd);
+                exit();
+            }
+            if(child == 0) {
+                runcmd(temp, syscall_getenvid());
+                // runbuf(temp, workPath);
+            }
+            else {
+                wait(child);
+                // debugf("parent: %d, child: %d, run_res[%d]: %d\n", f_envid, child, i, rr);
+            }
+            int fd = open("/.mos_catch", O_RDONLY);
+            if(fd < 0) {
+                debugf("failed to open /.mos_catch\n");
+                exit();
+            }
+            u_int rr;
+			if ((rr = read(fd, temp, sizeof(temp))) < 0) return 0;
+			close(fd);
+
+            temp[rr] = '\0';
+            
+            // debugf("catching command content: %s\n", temp);
+
+        catching:
+
+            memset(temp_cmd, 0, sizeof(temp_cmd));
+
+            strncpy(temp_cmd, cmd, p);
+            // debugf("now here before `: %s\n", temp_cmd);
+            strcat(temp_cmd, temp);
+            // debugf("now here add run value: %s, value: %s\n", temp_cmd, temp);
+            if(pos + 1 < strlen(cmd))
+                strcat(temp_cmd, cmd + pos + 1);
+            // debugf("now here after `: %s\n", temp_cmd);
+            strcpy(cmd, temp_cmd);
+            // strncpy
+        }
 
         int r = is_builtin_command(temp_cmd);
         u_int rr;
         if(r == -1) {
             debugf("invaild command\n");
-            exit();
+            // exit();
         }
         if(r == 1)
-            run_builtin_command(cmd, argc[i] - (i != num - 1), argv[i]);
+            rr = run_builtin_command(cmd, argc[i] - (i != num - 1), argv[i]);
         else {
             // debugf("running command: %s\n", cmd);
             int f_envid = syscall_getenvid();
             int child = fork();
             if (child < 0) {
                 debugf("fork failed for command %s\n", cmd);
-                exit();
+                // exit();
             }
             
             if(child == 0) {
-                runcmd(cmd, f_envid, workPath);
+                runcmd(cmd, f_envid);
             }
             else {
                 // wait(child);
@@ -466,6 +566,7 @@ int runbuf(char *buf, char *workPath) {
                 // debugf("parent: %d, child: %d, run_res[%d]: %d\n", f_envid, child, i, rr);
             }
         }
+        res[i] = rr;
     }
 
     return 0;
@@ -780,7 +881,7 @@ int main(int argc, char **argv) {
 			printf("# %s\n", buf);
 		}
 
-        runbuf(buf, workPath);
+        runbuf(buf);
 	}
 	return 0;
 }

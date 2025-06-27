@@ -135,5 +135,7 @@ int main(int argc, char **argv) {
 	if (!nflag) {
 		printf("\n");
 	}
+
+    exit_my(0, f_envid);
 	return 0;
 }

@@ -61,18 +61,19 @@ void ls1(char *prefix, u_int isdir, u_int size, char *name) {
 	printf(" ");
 }
 
-void usage(void) {
+void usage(u_int f_envid) {
 	printf("usage: ls [-dFl] [file...]\n");
-	exit();
+	exit_my(-1, f_envid);
 }
 
 int main(int argc, char **argv) {
 	int i;
 
+	int f_envid = get_f_envid(argc, argv);
 
 	ARGBEGIN {
 		default:
-			usage();
+			usage(f_envid);
 		case 'd':
 		case 'F':
 		case 'l':
@@ -101,5 +102,8 @@ int main(int argc, char **argv) {
 		}
 	}
 	printf("\n");
+
+	exit_my(0, f_envid);
+
 	return 0;
 }

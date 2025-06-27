@@ -62,6 +62,8 @@ int main(int argc, char **argv) {
         }
 	}
 
+    exit_my(err, f_envid);
+
 	return 0;
 }
 

@@ -45,6 +45,7 @@ char** strtok(char *str, const char delim) {
 }
 
 char* resolvePath(char *path, char *workPath) {
+    // debugf("resolving path: %s, %s\n", path, workPath);
     // path like '/%'
     if(path[0] == '/')
         return path;
@@ -85,6 +86,8 @@ char* resolvePath(char *path, char *workPath) {
         }
         i++;
     }
+
+    // debugf("workPath now: %s\n", nowWorkPath);
 
     return nowWorkPath;
 }
